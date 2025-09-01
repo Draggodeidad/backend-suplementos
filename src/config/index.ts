@@ -20,6 +20,12 @@ export const config = {
   // Logging
   logLevel: process.env.LOG_LEVEL || 'info',
 
+  // Supabase
+  supabaseUrl: process.env.SUPABASE_URL || '',
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  supabaseJwtSecret: process.env.SUPABASE_JWT_SECRET || '',
+
   // Database (para futuras fases)
   dbUrl: process.env.DATABASE_URL || '',
 

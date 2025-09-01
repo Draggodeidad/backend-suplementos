@@ -4,6 +4,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+Documentation/
 
 # Production builds
 dist/
@@ -44,3 +45,9 @@ Thumbs.db
 # Temporary folders
 tmp/
 temp/
+
+tables.sql
+admin-setup.sql
+fix-rls-policies.sql
+
+src/tests/
