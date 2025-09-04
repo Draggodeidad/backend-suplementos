@@ -180,7 +180,13 @@ export const acceptTerms = async (
   try {
     const user = req.user;
 
+    logger.info(
+      { userId: user?.id, userExists: !!user },
+      'Accept terms request received'
+    );
+
     if (!user) {
+      logger.warn('Accept terms failed: User not found in request');
       res.status(401).json({
         error: 'Unauthorized',
         message: 'User not found in request',
@@ -189,7 +195,13 @@ export const acceptTerms = async (
       return;
     }
 
+    logger.info({ userId: user.id }, 'Calling ProfileService.acceptTerms');
     const profile = await ProfileService.acceptTerms(user.id);
+
+    logger.info(
+      { userId: user.id, profileUpdated: !!profile },
+      'Terms accepted successfully'
+    );
 
     res.status(200).json({
       message: 'Terms accepted successfully',
@@ -198,7 +210,7 @@ export const acceptTerms = async (
     });
   } catch (error: any) {
     logger.error(
-      { error: error.message, userId: req.user?.id },
+      { error: error.message, errorStack: error.stack, userId: req.user?.id },
       'Error accepting terms'
     );
     res.status(500).json({

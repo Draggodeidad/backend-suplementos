@@ -71,6 +71,8 @@ export class ProfileService {
     data: Partial<Profile>
   ): Promise<Profile> {
     try {
+      logger.info({ userId, updateData: data }, 'Attempting to update profile');
+
       const { data: profile, error } = await supabaseAdmin
         .from('profiles')
         .update({
@@ -82,35 +84,112 @@ export class ProfileService {
         .single();
 
       if (error) {
+        logger.error({ error, userId }, 'Supabase error updating profile');
         throw error;
       }
 
-      logger.info({ userId }, 'Profile updated');
+      if (!profile) {
+        logger.error({ userId }, 'No profile returned after update');
+        throw new Error('No profile returned after update');
+      }
+
+      logger.info({ userId, profile }, 'Profile updated successfully');
       return profile;
     } catch (error: any) {
-      logger.error({ error: error.message, userId }, 'Error updating profile');
-      throw new Error('Failed to update profile');
+      logger.error(
+        { error: error.message, errorCode: error.code, userId },
+        'Error updating profile'
+      );
+      throw new Error(`Failed to update profile: ${error.message}`);
     }
   }
 
   /**
-   * Obtener o crear perfil (usado cuando un usuario se autentica por primera vez)
+   * Obtener o crear perfil de manera atómica usando upsert.
+   * Soluciona condiciones de carrera en solicitudes concurrentes.
+   *
+   * IMPORTANTE: Si el perfil ya existe, lo retorna sin modificar.
+   * Solo crea perfil nuevo si no existe.
+   *
+   * @param userId - ID del usuario
+   * @param initialData - Datos iniciales opcionales para el perfil (solo para creación)
+   * @returns Profile - El perfil existente o recién creado
    */
-  static async getOrCreateProfile(userId: string): Promise<Profile> {
+  static async getOrCreateProfile(
+    userId: string,
+    initialData: Partial<Profile> = {}
+  ): Promise<Profile> {
     try {
-      let profile = await this.getProfile(userId);
+      // Primero intentar obtener el perfil existente
+      const existingProfile = await this.getProfile(userId);
 
-      if (!profile) {
-        profile = await this.createProfile(userId);
+      if (existingProfile) {
+        logger.info(
+          {
+            userId,
+            role: existingProfile.role,
+            action: 'retrieved',
+            profileId: existingProfile.user_id,
+          },
+          'Profile retrieved - already exists'
+        );
+        return existingProfile;
       }
+
+      // Si no existe, usar upsert para crearlo de manera atómica
+      const profileData = {
+        user_id: userId,
+        role: initialData.role || 'user',
+        terms_accepted_at: initialData.terms_accepted_at || null,
+        // Los timestamps se manejan automáticamente por la base de datos
+      };
+
+      const { data: profile, error } = await supabaseAdmin
+        .from('profiles')
+        .upsert(profileData, {
+          onConflict: 'user_id',
+          ignoreDuplicates: false,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        // Si falló el upsert, podría ser que otro hilo lo creó primero
+        if (error.code === '23505' || error.message?.includes('duplicate')) {
+          logger.info(
+            { userId },
+            'Concurrent creation detected, fetching existing profile'
+          );
+          const fallbackProfile = await this.getProfile(userId);
+          if (fallbackProfile) {
+            return fallbackProfile;
+          }
+        }
+        throw error;
+      }
+
+      logger.info(
+        {
+          userId,
+          role: profile.role,
+          action: 'created',
+          profileId: profile.user_id,
+        },
+        'Profile created via atomic upsert'
+      );
 
       return profile;
     } catch (error: any) {
       logger.error(
-        { error: error.message, userId },
-        'Error getting or creating profile'
+        {
+          error: error.message,
+          errorCode: error.code,
+          userId,
+        },
+        'Error in atomic getOrCreateProfile'
       );
-      throw new Error('Failed to get or create profile');
+
+      throw new Error(`Failed to get or create profile: ${error.message}`);
     }
   }
 

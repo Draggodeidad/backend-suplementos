@@ -32,10 +32,7 @@ export const authGuard = async (
     const { data: user, error } = await supabase.auth.getUser(token);
 
     if (error || !user.user) {
-      logger.warn(
-        { error: error?.message, token: token.substring(0, 20) + '...' },
-        'Invalid token'
-      );
+      logger.warn({ error: error?.message }, 'Invalid token');
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid or expired token',

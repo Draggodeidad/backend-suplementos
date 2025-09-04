@@ -40,7 +40,7 @@ import { logger } from '../utils/logger';
  * /admin/users:
  *   get:
  *     summary: Obtener lista de todos los usuarios (solo admins)
- *     description: Retorna lista de usuarios con sus perfiles
+ *     description: Retorna lista de usuarios con sus perfiles usando paginación basada en cursor
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -50,13 +50,21 @@ import { logger } from '../utils/logger';
  *         schema:
  *           type: integer
  *           default: 50
+ *           minimum: 1
+ *           maximum: 1000
  *         description: Número máximo de usuarios a retornar
  *       - in: query
- *         name: offset
+ *         name: cursor
  *         schema:
- *           type: integer
- *           default: 0
- *         description: Número de usuarios a omitir (paginación)
+ *           type: string
+ *         description: Cursor para paginación (ID del último usuario de la página anterior)
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *         description: Orden de los resultados por fecha de creación
  *     responses:
  *       200:
  *         description: Lista de usuarios obtenida exitosamente
@@ -69,12 +77,21 @@ import { logger } from '../utils/logger';
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/UserWithProfile'
- *                 total:
- *                   type: number
- *                 limit:
- *                   type: number
- *                 offset:
- *                   type: number
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     limit:
+ *                       type: number
+ *                     hasNext:
+ *                       type: boolean
+ *                     hasPrevious:
+ *                       type: boolean
+ *                     nextCursor:
+ *                       type: string
+ *                     previousCursor:
+ *                       type: string
+ *                     count:
+ *                       type: number
  *       403:
  *         description: Privilegios de administrador requeridos
  */
@@ -83,54 +100,152 @@ export const getAllUsers = async (
   res: Response
 ): Promise<void> => {
   try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    // Validar y parsear parámetros
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 1000);
+    const cursor = req.query.cursor as string;
+    const order = (req.query.order as string) === 'desc' ? 'desc' : 'asc';
 
-    // Obtener usuarios de Supabase Auth
-    const { data: authUsers, error: authError } =
-      await supabaseAdmin.auth.admin.listUsers({
-        page: Math.floor(offset / limit) + 1,
-        perPage: limit,
-      });
+    // Construir query base para perfiles
+    let profileQuery = supabaseAdmin
+      .from('profiles')
+      .select('user_id, role, terms_accepted_at, created_at, updated_at')
+      .order('created_at', { ascending: order === 'asc' });
 
-    if (authError) {
-      throw authError;
+    // Aplicar cursor para paginación si existe
+    if (cursor) {
+      // Obtener el timestamp del cursor
+      const { data: cursorProfile, error: cursorError } = await supabaseAdmin
+        .from('profiles')
+        .select('created_at')
+        .eq('user_id', cursor)
+        .single();
+
+      if (cursorError) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: 'Invalid cursor provided',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (order === 'asc') {
+        profileQuery = profileQuery.gt('created_at', cursorProfile.created_at);
+      } else {
+        profileQuery = profileQuery.lt('created_at', cursorProfile.created_at);
+      }
     }
 
-    // Obtener perfiles correspondientes
-    const userIds = authUsers.users.map((user) => user.id);
-    const { data: profiles, error: profilesError } = await supabaseAdmin
-      .from('profiles')
-      .select('*')
-      .in('user_id', userIds);
+    // Obtener un registro extra para determinar si hay más páginas
+    profileQuery = profileQuery.limit(limit + 1);
+
+    const { data: profiles, error: profilesError } = await profileQuery;
 
     if (profilesError) {
       throw profilesError;
     }
 
-    // Combinar datos de auth y perfiles
-    const usersWithProfiles = authUsers.users.map((user) => {
-      const profile = profiles?.find((p) => p.user_id === user.id);
-      return {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-        profile: profile || null,
-      };
+    // Verificar si hay más páginas disponibles
+    const hasNext = profiles.length > limit;
+    const actualProfiles = hasNext ? profiles.slice(0, limit) : profiles;
+    const hasPrevious = !!cursor;
+
+    // Obtener detalles de autenticación para los usuarios
+    const userIds = actualProfiles.map((profile) => profile.user_id);
+
+    if (userIds.length === 0) {
+      res.status(200).json({
+        users: [],
+        pagination: {
+          limit,
+          hasNext: false,
+          hasPrevious,
+          nextCursor: null,
+          previousCursor: null,
+          count: 0,
+        },
+      });
+      return;
+    }
+
+    // Obtener datos de autenticación en lotes
+    const authUsersPromises = userIds.map(async (userId) => {
+      try {
+        const { data: user, error } =
+          await supabaseAdmin.auth.admin.getUserById(userId);
+        return error ? null : user.user;
+      } catch {
+        return null;
+      }
     });
 
-    res.status(200).json({
+    const authUsersResults = await Promise.allSettled(authUsersPromises);
+    const authUsers = authUsersResults
+      .filter(
+        (result): result is PromiseFulfilledResult<any> =>
+          result.status === 'fulfilled' && result.value !== null
+      )
+      .map((result) => result.value);
+
+    // Combinar datos de auth y perfiles
+    const usersWithProfiles = actualProfiles
+      .map((profile) => {
+        const authUser = authUsers.find((user) => user?.id === profile.user_id);
+        if (!authUser) return null;
+
+        return {
+          id: authUser.id,
+          email: authUser.email,
+          phone: authUser.phone,
+          created_at: authUser.created_at,
+          updated_at: authUser.updated_at,
+          profile: {
+            user_id: profile.user_id,
+            role: profile.role,
+            terms_accepted_at: profile.terms_accepted_at,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at,
+          },
+        };
+      })
+      .filter((user) => user !== null);
+
+    // Preparar cursors para navegación
+    const nextCursor =
+      hasNext && usersWithProfiles.length > 0
+        ? usersWithProfiles[usersWithProfiles.length - 1].id
+        : null;
+
+    // Para obtener el cursor anterior, necesitaríamos hacer otra consulta
+    // Por simplicidad, usamos el primer usuario de la página actual
+    const previousCursor =
+      hasPrevious && usersWithProfiles.length > 0
+        ? usersWithProfiles[0].id
+        : null;
+
+    const response = {
       users: usersWithProfiles,
-      total: authUsers.total,
-      limit,
-      offset,
-    });
+      pagination: {
+        limit,
+        hasNext,
+        hasPrevious,
+        nextCursor,
+        previousCursor,
+        count: usersWithProfiles.length,
+      },
+    };
+
+    res.status(200).json(response);
 
     logger.info(
-      { adminId: req.user?.id, usersReturned: usersWithProfiles.length },
-      'Admin retrieved users list'
+      {
+        adminId: req.user?.id,
+        usersReturned: usersWithProfiles.length,
+        cursor,
+        hasNext,
+        hasPrevious,
+      },
+      'Admin retrieved users list with cursor pagination'
     );
   } catch (error: any) {
     logger.error(
