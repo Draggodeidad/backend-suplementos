@@ -84,6 +84,10 @@ const options: swaggerJsdoc.Options = {
         name: 'Health',
         description: 'Health check endpoints',
       },
+      {
+        name: 'Authentication',
+        description: 'Authentication and user profile endpoints',
+      },
     ],
   },
   apis: ['./src/routes/*.ts', './src/controllers/*.ts'], // paths to files containing OpenAPI definitions

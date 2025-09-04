@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import { config } from '../config';
 import healthRoutes from './healthRoutes';
+import authRoutes from './authRoutes';
+import adminRoutes from './adminRoutes';
 
 const router = Router();
 
 // Health check route
 router.use('/health', healthRoutes);
+
+// Authentication routes
+router.use('/', authRoutes);
+
+// Admin routes
+router.use('/admin', adminRoutes);
 
 // API info route
 router.get('/', (req, res) => {
