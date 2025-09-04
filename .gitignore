@@ -49,5 +49,5 @@ temp/
 tables.sql
 admin-setup.sql
 fix-rls-policies.sql
-
+supabase-storage-setup.sql
 src/tests/

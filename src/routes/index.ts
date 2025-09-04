@@ -3,6 +3,8 @@ import { config } from '../config';
 import healthRoutes from './healthRoutes';
 import authRoutes from './authRoutes';
 import adminRoutes from './adminRoutes';
+import productRoutes from './productRoutes';
+import productAdminRoutes from './productAdminRoutes';
 
 const router = Router();
 
@@ -12,8 +14,14 @@ router.use('/health', healthRoutes);
 // Authentication routes
 router.use('/', authRoutes);
 
+// Public product routes
+router.use('/', productRoutes);
+
 // Admin routes
 router.use('/admin', adminRoutes);
+
+// Admin product routes
+router.use('/admin', productAdminRoutes);
 
 // API info route
 router.get('/', (req, res) => {
@@ -25,6 +33,9 @@ router.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       docs: '/docs',
+      products: '/products',
+      categories: '/categories',
+      admin: '/admin',
     },
     timestamp: new Date().toISOString(),
   });
