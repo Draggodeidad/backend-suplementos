@@ -61,11 +61,11 @@ export class ValidationError extends DomainError {
 }
 
 /**
- * Error para operaciones no autorizadas (403)
+ * Error para operaciones no autorizadas (401)
  */
 export class UnauthorizedError extends DomainError {
   constructor(message: string = 'Unauthorized access') {
-    super(message, 'UNAUTHORIZED', 403);
+    super(message, 'UNAUTHORIZED', 401);
   }
 }
 
