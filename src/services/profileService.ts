@@ -1,6 +1,10 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { Profile } from '../types/auth';
 import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  InternalServerError,
+} from '../types/errors';
 
 export class ProfileService {
   /**
@@ -26,7 +30,7 @@ export class ProfileService {
       return data;
     } catch (error: any) {
       logger.error({ error: error.message, userId }, 'Error getting profile');
-      throw new Error('Failed to get profile');
+      throw new InternalServerError('Failed to get profile');
     }
   }
 
@@ -59,7 +63,7 @@ export class ProfileService {
       return profile;
     } catch (error: any) {
       logger.error({ error: error.message, userId }, 'Error creating profile');
-      throw new Error('Failed to create profile');
+      throw new InternalServerError('Failed to create profile');
     }
   }
 
@@ -90,7 +94,7 @@ export class ProfileService {
 
       if (!profile) {
         logger.error({ userId }, 'No profile returned after update');
-        throw new Error('No profile returned after update');
+        throw new NotFoundError('Profile', userId);
       }
 
       logger.info({ userId, profile }, 'Profile updated successfully');
@@ -100,7 +104,11 @@ export class ProfileService {
         { error: error.message, errorCode: error.code, userId },
         'Error updating profile'
       );
-      throw new Error(`Failed to update profile: ${error.message}`);
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new InternalServerError(`Failed to update profile: ${error.message}`);
     }
   }
 
@@ -189,7 +197,7 @@ export class ProfileService {
         'Error in atomic getOrCreateProfile'
       );
 
-      throw new Error(`Failed to get or create profile: ${error.message}`);
+      throw new InternalServerError(`Failed to get or create profile: ${error.message}`);
     }
   }
 
@@ -203,7 +211,7 @@ export class ProfileService {
       });
     } catch (error: any) {
       logger.error({ error: error.message, userId }, 'Error accepting terms');
-      throw new Error('Failed to accept terms');
+      throw new InternalServerError('Failed to accept terms');
     }
   }
 }

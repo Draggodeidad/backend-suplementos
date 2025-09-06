@@ -17,6 +17,11 @@ import {
   extractPathFromUrl,
 } from '../config/storage';
 import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  ValidationError,
+  InternalServerError,
+} from '../types/errors';
 
 export class ImageService {
   /**
@@ -30,11 +35,17 @@ export class ImageService {
 
     // Validar tipo de archivo
     if (!isAllowedMimeType(contentType)) {
-      throw new Error(`Content type ${contentType} not allowed`);
+      throw new ValidationError(
+        `Content type ${contentType} not allowed`,
+        'contentType'
+      );
     }
 
     if (!isAllowedExtension(filename)) {
-      throw new Error(`File extension not allowed for ${filename}`);
+      throw new ValidationError(
+        `File extension not allowed for ${filename}`,
+        'filename'
+      );
     }
 
     // Generar path único
@@ -52,7 +63,7 @@ export class ImageService {
           { error: uploadError, productId, filename },
           'Error generating upload URL'
         );
-        throw new Error('Failed to generate upload URL');
+        throw new InternalServerError('Failed to generate upload URL');
       }
 
       // Generar URL pública
@@ -78,7 +89,11 @@ export class ImageService {
         { error: error.message, productId, filename },
         'Error in generateUploadUrl'
       );
-      throw new Error('Failed to generate upload URL');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to generate upload URL');
     }
   }
 
@@ -94,7 +109,7 @@ export class ImageService {
     // Validar que la URL es del bucket correcto
     const filePath = extractPathFromUrl(publicUrl);
     if (!filePath) {
-      throw new Error('Invalid public URL format');
+      throw new ValidationError('Invalid public URL format', 'publicUrl');
     }
 
     try {
@@ -121,7 +136,7 @@ export class ImageService {
           { error, productId, publicUrl },
           'Error adding image to product'
         );
-        throw new Error('Failed to add image to product');
+        throw new InternalServerError('Failed to add image to product');
       }
 
       logger.info(
@@ -135,7 +150,11 @@ export class ImageService {
         { error: error.message, productId, publicUrl },
         'Error in addImageToProduct'
       );
-      throw new Error('Failed to add image to product');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to add image to product');
     }
   }
 
@@ -152,7 +171,7 @@ export class ImageService {
 
     if (error) {
       logger.error({ error, productId }, 'Error fetching product images');
-      throw new Error('Failed to fetch product images');
+      throw new InternalServerError('Failed to fetch product images');
     }
 
     return data || [];
@@ -182,7 +201,7 @@ export class ImageService {
 
     if (error) {
       logger.error({ error, imageId, updates }, 'Error updating image');
-      throw new Error('Failed to update image');
+      throw new InternalServerError('Failed to update image');
     }
 
     logger.info({ imageId, updates }, 'Image updated successfully');
@@ -196,7 +215,7 @@ export class ImageService {
     // Obtener información de la imagen
     const image = await this.getImageById(imageId);
     if (!image) {
-      throw new Error('Image not found');
+      throw new NotFoundError('Image', imageId);
     }
 
     try {
@@ -223,7 +242,7 @@ export class ImageService {
 
       if (error) {
         logger.error({ error, imageId }, 'Error deleting image record');
-        throw new Error('Failed to delete image');
+        throw new InternalServerError('Failed to delete image');
       }
 
       logger.info(
@@ -232,7 +251,11 @@ export class ImageService {
       );
     } catch (error: any) {
       logger.error({ error: error.message, imageId }, 'Error in deleteImage');
-      throw new Error('Failed to delete image');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to delete image');
     }
   }
 
@@ -248,7 +271,7 @@ export class ImageService {
 
     if (error) {
       logger.error({ error, productId }, 'Error clearing primary images');
-      throw new Error('Failed to clear primary images');
+      throw new InternalServerError('Failed to clear primary images');
     }
   }
 
@@ -266,7 +289,7 @@ export class ImageService {
 
     if (error) {
       logger.error({ error, imageId }, 'Error fetching image by ID');
-      throw new Error('Failed to fetch image');
+      throw new InternalServerError('Failed to fetch image');
     }
 
     return data;
@@ -304,7 +327,7 @@ export class ImageService {
 
     if (error) {
       logger.error({ error, productId }, 'Error deleting product images');
-      throw new Error('Failed to delete product images');
+      throw new InternalServerError('Failed to delete product images');
     }
 
     logger.info(

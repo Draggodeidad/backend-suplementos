@@ -13,6 +13,12 @@ import {
 import { InventoryService } from './inventoryService';
 import { ImageService } from './imageService';
 import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  InternalServerError,
+} from '../types/errors';
 
 export class ProductService {
   /**
@@ -90,7 +96,7 @@ export class ProductService {
 
       if (error) {
         logger.error({ error, params }, 'Error fetching products');
-        throw new Error('Failed to fetch products');
+        throw new InternalServerError('Failed to fetch products');
       }
 
       // Procesar datos
@@ -118,7 +124,7 @@ export class ProductService {
       return response;
     } catch (error: any) {
       logger.error({ error: error.message, params }, 'Error in getProducts');
-      throw new Error('Failed to fetch products');
+      throw new InternalServerError('Failed to fetch products');
     }
   }
 
@@ -141,7 +147,7 @@ export class ProductService {
 
     if (error) {
       logger.error({ error, productId: id }, 'Error fetching product');
-      throw new Error('Failed to fetch product');
+      throw new InternalServerError('Failed to fetch product');
     }
 
     return data ? this.formatProductData(data) : null;
@@ -169,7 +175,7 @@ export class ProductService {
       // Verificar que el SKU no exista
       const existingProduct = await this.getProductBySku(sku);
       if (existingProduct) {
-        throw new Error('Product with this SKU already exists');
+        throw new ConflictError('Product', 'SKU', sku);
       }
 
       // Crear producto
@@ -194,7 +200,7 @@ export class ProductService {
           { error: productError, productData },
           'Error creating product'
         );
-        throw new Error('Failed to create product');
+        throw new InternalServerError('Failed to create product');
       }
 
       // Crear inventario inicial
@@ -217,7 +223,11 @@ export class ProductService {
         { error: error.message, productData },
         'Error in createProduct'
       );
-      throw new Error(error.message || 'Failed to create product');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof ConflictError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to create product');
     }
   }
 
@@ -232,14 +242,14 @@ export class ProductService {
       // Verificar que el producto existe
       const existingProduct = await this.getProductById(id);
       if (!existingProduct) {
-        throw new Error('Product not found');
+        throw new NotFoundError('Product', id);
       }
 
       // Si se actualiza el SKU, verificar que no exista
       if (updates.sku && updates.sku !== existingProduct.sku) {
         const productWithSku = await this.getProductBySku(updates.sku);
         if (productWithSku) {
-          throw new Error('Product with this SKU already exists');
+          throw new ConflictError('Product', 'SKU', updates.sku);
         }
       }
 
@@ -259,7 +269,7 @@ export class ProductService {
           { error, productId: id, updates },
           'Error updating product'
         );
-        throw new Error('Failed to update product');
+        throw new InternalServerError('Failed to update product');
       }
 
       logger.info({ productId: id, updates }, 'Product updated successfully');
@@ -272,7 +282,11 @@ export class ProductService {
         { error: error.message, productId: id, updates },
         'Error in updateProduct'
       );
-      throw new Error(error.message || 'Failed to update product');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof NotFoundError || error instanceof ConflictError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to update product');
     }
   }
 
@@ -284,7 +298,7 @@ export class ProductService {
       // Verificar que el producto existe
       const existingProduct = await this.getProductById(id);
       if (!existingProduct) {
-        throw new Error('Product not found');
+        throw new NotFoundError('Product', id);
       }
 
       // Eliminar imágenes asociadas
@@ -301,7 +315,7 @@ export class ProductService {
 
       if (error) {
         logger.error({ error, productId: id }, 'Error deleting product');
-        throw new Error('Failed to delete product');
+        throw new InternalServerError('Failed to delete product');
       }
 
       logger.info(
@@ -313,7 +327,11 @@ export class ProductService {
         { error: error.message, productId: id },
         'Error in deleteProduct'
       );
-      throw new Error(error.message || 'Failed to delete product');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to delete product');
     }
   }
 
@@ -329,7 +347,7 @@ export class ProductService {
 
     if (error) {
       logger.error({ error, sku }, 'Error fetching product by SKU');
-      throw new Error('Failed to fetch product by SKU');
+      throw new InternalServerError('Failed to fetch product by SKU');
     }
 
     return data;
@@ -341,7 +359,7 @@ export class ProductService {
   static async toggleProductStatus(id: number): Promise<Product> {
     const existingProduct = await this.getProductById(id);
     if (!existingProduct) {
-      throw new Error('Product not found');
+      throw new NotFoundError('Product', id);
     }
 
     return await this.updateProduct(id, { active: !existingProduct.active });
@@ -370,7 +388,7 @@ export class ProductService {
         { error, categoryId },
         'Error fetching products by category'
       );
-      throw new Error('Failed to fetch products by category');
+      throw new InternalServerError('Failed to fetch products by category');
     }
 
     return (data || []).map(this.formatProductData);
@@ -419,12 +437,18 @@ export class ProductService {
         .select('*', { count: 'exact', head: true })
         .eq('active', true);
 
-      // Productos con imágenes
-      const { count: withImages } = await supabaseAdmin
+      // Productos con imágenes - usar consulta con JOIN para contar productos que tienen imágenes
+      const { data: productsWithImages } = await supabaseAdmin
         .from('products')
-        .select('*', { count: 'exact', head: true })
-        .not('id', 'is', null)
-        .not('product_images.id', 'is', null);
+        .select(
+          `
+          id,
+          product_images!inner(id)
+        `
+        )
+        .not('id', 'is', null);
+
+      const withImages = productsWithImages?.length || 0;
 
       // Categorías utilizadas
       const { count: categories } = await supabaseAdmin
@@ -440,7 +464,7 @@ export class ProductService {
       };
     } catch (error: any) {
       logger.error({ error: error.message }, 'Error getting product stats');
-      throw new Error('Failed to get product statistics');
+      throw new InternalServerError('Failed to get product statistics');
     }
   }
 }

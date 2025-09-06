@@ -5,6 +5,11 @@
 import { supabaseAdmin } from '../config/supabase';
 import { Category } from '../types/catalog';
 import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  ConflictError,
+  InternalServerError,
+} from '../types/errors';
 
 export class CategoryService {
   /**
@@ -18,7 +23,7 @@ export class CategoryService {
 
     if (error) {
       logger.error({ error }, 'Error fetching categories');
-      throw new Error('Failed to fetch categories');
+      throw new InternalServerError('Failed to fetch categories');
     }
 
     return data || [];
@@ -39,7 +44,7 @@ export class CategoryService {
         return null; // No encontrado
       }
       logger.error({ error, categoryId: id }, 'Error fetching category');
-      throw new Error('Failed to fetch category');
+      throw new InternalServerError('Failed to fetch category');
     }
 
     return data;
@@ -52,7 +57,7 @@ export class CategoryService {
     // Verificar si ya existe
     const existing = await this.getCategoryByName(name);
     if (existing) {
-      throw new Error('Category with this name already exists');
+      throw new ConflictError('Category', 'name', name);
     }
 
     const { data, error } = await supabaseAdmin
@@ -63,7 +68,7 @@ export class CategoryService {
 
     if (error) {
       logger.error({ error, name }, 'Error creating category');
-      throw new Error('Failed to create category');
+      throw new InternalServerError('Failed to create category');
     }
 
     logger.info({ categoryId: data.id, name }, 'Category created successfully');
@@ -77,7 +82,7 @@ export class CategoryService {
     // Verificar que no existe otra categoría con el mismo nombre
     const existing = await this.getCategoryByName(name);
     if (existing && existing.id !== id) {
-      throw new Error('Category with this name already exists');
+      throw new ConflictError('Category', 'name', name);
     }
 
     const { data, error } = await supabaseAdmin
@@ -89,7 +94,7 @@ export class CategoryService {
 
     if (error) {
       logger.error({ error, categoryId: id, name }, 'Error updating category');
-      throw new Error('Failed to update category');
+      throw new InternalServerError('Failed to update category');
     }
 
     logger.info(
@@ -129,7 +134,7 @@ export class CategoryService {
 
     if (error) {
       logger.error({ error, categoryId: id }, 'Error deleting category');
-      throw new Error('Failed to delete category');
+      throw new InternalServerError('Failed to delete category');
     }
 
     logger.info({ categoryId: id }, 'Category deleted successfully');
@@ -149,7 +154,7 @@ export class CategoryService {
 
     if (error) {
       logger.error({ error, name }, 'Error checking category name');
-      throw new Error('Failed to check category name');
+      throw new InternalServerError('Failed to check category name');
     }
 
     return data;

@@ -7,6 +7,54 @@ import { ProductService } from '../services/productService';
 import { CategoryService } from '../services/categoryService';
 import { ProductQueryParams } from '../types/catalog';
 import { logger } from '../utils/logger';
+import {
+  getHttpStatusCode,
+  formatErrorResponse,
+  ValidationError,
+} from '../types/errors';
+
+// Constantes para validación de parámetros
+const VALID_SORT_FIELDS = ['name', 'price', 'created_at'] as const;
+const VALID_ORDER_VALUES = ['asc', 'desc'] as const;
+
+type ValidSortField = (typeof VALID_SORT_FIELDS)[number];
+type ValidOrderValue = (typeof VALID_ORDER_VALUES)[number];
+
+/**
+ * Valida y normaliza el parámetro de ordenamiento
+ */
+function validateSortParam(sort: unknown): ValidSortField {
+  if (typeof sort !== 'string') {
+    throw new ValidationError('Sort parameter must be a string', 'sort');
+  }
+
+  if (!VALID_SORT_FIELDS.includes(sort as ValidSortField)) {
+    throw new ValidationError(
+      `Invalid sort field. Must be one of: ${VALID_SORT_FIELDS.join(', ')}`,
+      'sort'
+    );
+  }
+
+  return sort as ValidSortField;
+}
+
+/**
+ * Valida y normaliza el parámetro de dirección de ordenamiento
+ */
+function validateOrderParam(order: unknown): ValidOrderValue {
+  if (typeof order !== 'string') {
+    throw new ValidationError('Order parameter must be a string', 'order');
+  }
+
+  if (!VALID_ORDER_VALUES.includes(order as ValidOrderValue)) {
+    throw new ValidationError(
+      `Invalid order value. Must be one of: ${VALID_ORDER_VALUES.join(', ')}`,
+      'order'
+    );
+  }
+
+  return order as ValidOrderValue;
+}
 
 /**
  * @swagger
@@ -92,14 +140,22 @@ export const getProducts = async (
   res: Response
 ): Promise<void> => {
   try {
+    // Validar parámetros de ordenamiento
+    const sort = req.query.sort
+      ? validateSortParam(req.query.sort)
+      : 'created_at';
+    const order = req.query.order
+      ? validateOrderParam(req.query.order)
+      : 'desc';
+
     const queryParams: ProductQueryParams = {
       page: req.query.page as string,
       limit: req.query.limit as string,
       category_id: req.query.category_id as string,
       search: req.query.search as string,
       active: 'true', // Solo productos activos en la API pública
-      sort: req.query.sort as 'name' | 'price' | 'created_at',
-      order: req.query.order as 'asc' | 'desc',
+      sort,
+      order,
     };
 
     const result = await ProductService.getProducts(queryParams);
@@ -123,11 +179,11 @@ export const getProducts = async (
       { error: error.message, query: req.query },
       'Error getting products'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to retrieve products',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -216,11 +272,11 @@ export const getProductById = async (
       { error: error.message, productId: req.params.id },
       'Error getting product'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to retrieve product',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -267,11 +323,11 @@ export const getCategories = async (
     logger.info({ count: categories.length }, 'Categories list retrieved');
   } catch (error: any) {
     logger.error({ error: error.message }, 'Error getting categories');
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to retrieve categories',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -349,10 +405,10 @@ export const getProductsByCategory = async (
       { error: error.message, categoryId: req.params.categoryId },
       'Error getting products by category'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to retrieve products by category',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
