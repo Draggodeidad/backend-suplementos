@@ -438,15 +438,24 @@ export class ProductService {
         .eq('active', true);
 
       // Productos con imágenes - usar consulta con JOIN para contar productos que tienen imágenes
-      const { data: productsWithImages } = await supabaseAdmin
-        .from('products')
-        .select(
-          `
+      const { data: productsWithImages, error: imagesError } =
+        await supabaseAdmin
+          .from('products')
+          .select(
+            `
           id,
           product_images!inner(id)
         `
-        )
-        .not('id', 'is', null);
+          )
+          .not('id', 'is', null);
+
+      if (imagesError) {
+        logger.error(
+          { error: imagesError },
+          'Error fetching products with images'
+        );
+        throw new InternalServerError('Failed to fetch products with images');
+      }
 
       // Deduplicar por ID de producto para evitar contar productos con múltiples imágenes más de una vez
       const uniqueProductIds = new Set(
