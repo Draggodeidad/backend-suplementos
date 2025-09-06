@@ -96,12 +96,32 @@ export const validateFileSize = (contentLength: number): boolean => {
  * Obtiene la URL pública para un archivo en el bucket
  */
 export const getPublicUrl = (filePath: string): string => {
+  // Validar que filePath sea una cadena no vacía
+  if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+    throw new Error('filePath must be a non-empty string');
+  }
+
+  // Validar que el bucket esté definido
+  if (!STORAGE_CONFIG.PRODUCT_IMAGES_BUCKET) {
+    throw new Error('PRODUCT_IMAGES_BUCKET is not defined in storage config');
+  }
+
   const supabaseUrl = process.env.SUPABASE_URL;
   if (!supabaseUrl) {
     throw new Error('SUPABASE_URL environment variable is required');
   }
+
+  // Normalizar URL base (remover barras al final)
   const baseUrl = supabaseUrl.replace(/\/+$/, '');
-  const normalizedPath = filePath.replace(/^\/+/, '');
+
+  // Normalizar ruta del archivo (remover barras al inicio y espacios)
+  const normalizedPath = filePath.trim().replace(/^\/+/, '');
+
+  // Validar que la ruta normalizada no esté vacía
+  if (!normalizedPath) {
+    throw new Error('filePath cannot be empty after normalization');
+  }
+
   return `${baseUrl}/storage/v1/object/public/${STORAGE_CONFIG.PRODUCT_IMAGES_BUCKET}/${normalizedPath}`;
 };
 
