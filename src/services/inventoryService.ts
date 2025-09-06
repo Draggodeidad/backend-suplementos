@@ -10,6 +10,12 @@ import {
   LowStockProduct,
 } from '../types/catalog';
 import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  ValidationError,
+  InsufficientDataError,
+  InternalServerError,
+} from '../types/errors';
 
 export class InventoryService {
   /**
@@ -24,7 +30,7 @@ export class InventoryService {
 
     if (error) {
       logger.error({ error, productId }, 'Error fetching inventory');
-      throw new Error('Failed to fetch inventory');
+      throw new InternalServerError('Failed to fetch inventory');
     }
 
     return data;
@@ -55,7 +61,7 @@ export class InventoryService {
         { error, productId, stock, lowStockThreshold },
         'Error creating inventory'
       );
-      throw new Error('Failed to create inventory');
+      throw new InternalServerError('Failed to create inventory');
     }
 
     logger.info(
@@ -77,7 +83,7 @@ export class InventoryService {
 
     // Validar que el stock no sea negativo
     if (stock < 0) {
-      throw new Error('Stock cannot be negative');
+      throw new ValidationError('Stock cannot be negative', 'stock');
     }
 
     // Preparar objeto de actualización
@@ -100,7 +106,7 @@ export class InventoryService {
           { error: inventoryError, productId, updates },
           'Error updating inventory'
         );
-        throw new Error('Failed to update inventory');
+        throw new InternalServerError('Failed to update inventory');
       }
 
       // Obtener información del producto
@@ -115,7 +121,7 @@ export class InventoryService {
           { error: productError, productId },
           'Error fetching product info'
         );
-        throw new Error('Failed to fetch product information');
+        throw new InternalServerError('Failed to fetch product information');
       }
 
       const response: InventoryUpdateResponse = {
@@ -138,7 +144,11 @@ export class InventoryService {
         { error: error.message, productId, updates },
         'Error in updateInventory'
       );
-      throw new Error('Failed to update inventory');
+      // Si ya es un error de dominio, re-lanzarlo
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      throw new InternalServerError('Failed to update inventory');
     }
   }
 
@@ -153,13 +163,17 @@ export class InventoryService {
     // Obtener stock actual
     const currentInventory = await this.getInventory(productId);
     if (!currentInventory) {
-      throw new Error('Inventory not found for product');
+      throw new NotFoundError('Inventory', productId);
     }
 
     const newStock = currentInventory.stock + adjustment;
 
     if (newStock < 0) {
-      throw new Error('Insufficient stock for this adjustment');
+      throw new InsufficientDataError(
+        'stock',
+        currentInventory.stock,
+        Math.abs(adjustment)
+      );
     }
 
     // Actualizar stock
@@ -175,7 +189,7 @@ export class InventoryService {
         { error, productId, adjustment, newStock },
         'Error adjusting stock'
       );
-      throw new Error('Failed to adjust stock');
+      throw new InternalServerError('Failed to adjust stock');
     }
 
     logger.info(
@@ -202,13 +216,13 @@ export class InventoryService {
 
       if (error) {
         logger.error({ error }, 'Error fetching low stock products');
-        throw new Error('Failed to fetch low stock products');
+        throw new InternalServerError('Failed to fetch low stock products');
       }
 
       return data || [];
     } catch (error: any) {
       logger.error({ error: error.message }, 'Error in getLowStockProducts');
-      throw new Error('Failed to get low stock products');
+      throw new InternalServerError('Failed to get low stock products');
     }
   }
 
@@ -251,8 +265,10 @@ export class InventoryService {
     const availability = await this.checkStockAvailability(productId, quantity);
 
     if (!availability.available) {
-      throw new Error(
-        `Insufficient stock. Available: ${availability.currentStock}, Requested: ${quantity}`
+      throw new InsufficientDataError(
+        'stock',
+        availability.currentStock,
+        quantity
       );
     }
 
@@ -281,7 +297,7 @@ export class InventoryService {
 
     if (error) {
       logger.error({ error, productId }, 'Error deleting inventory');
-      throw new Error('Failed to delete inventory');
+      throw new InternalServerError('Failed to delete inventory');
     }
 
     logger.info({ productId }, 'Inventory deleted successfully');
@@ -319,7 +335,7 @@ export class InventoryService {
       };
     } catch (error: any) {
       logger.error({ error: error.message }, 'Error getting inventory stats');
-      throw new Error('Failed to get inventory statistics');
+      throw new InternalServerError('Failed to get inventory statistics');
     }
   }
 }

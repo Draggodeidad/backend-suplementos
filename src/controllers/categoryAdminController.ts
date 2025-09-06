@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import { CategoryService } from '../services/categoryService';
 import { logger } from '../utils/logger';
+import { getHttpStatusCode, formatErrorResponse } from '../types/errors';
 
 /**
  * @swagger
@@ -65,11 +66,11 @@ export const createCategory = async (
       { error: error.message, adminId: req.user?.id },
       'Error creating category'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to create category',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -172,11 +173,11 @@ export const updateCategory = async (
       },
       'Error updating category'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to update category',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -255,10 +256,10 @@ export const deleteCategory = async (
       },
       'Error deleting category'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to delete category',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };

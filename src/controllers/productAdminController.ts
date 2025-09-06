@@ -15,6 +15,11 @@ import {
   UpdateInventoryRequest,
 } from '../types/catalog';
 import { logger } from '../utils/logger';
+import {
+  isDomainError,
+  getHttpStatusCode,
+  formatErrorResponse,
+} from '../types/errors';
 
 /**
  * @swagger
@@ -119,24 +124,15 @@ export const createProduct = async (
       'Admin created product'
     );
   } catch (error: any) {
-    if (error.message.includes('already exists')) {
-      res.status(409).json({
-        error: 'Conflict',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
     logger.error(
       { error: error.message, adminId: req.user?.id, productData: req.body },
       'Error creating product'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to create product',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -239,33 +235,15 @@ export const updateProduct = async (
       'Admin updated product'
     );
   } catch (error: any) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    if (error.message.includes('already exists')) {
-      res.status(409).json({
-        error: 'Conflict',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
     logger.error(
       { error: error.message, adminId: req.user?.id, productId: req.params.id },
       'Error updating product'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to update product',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -320,24 +298,15 @@ export const deleteProduct = async (
 
     logger.info({ adminId: req.user?.id, productId }, 'Admin deleted product');
   } catch (error: any) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
     logger.error(
       { error: error.message, adminId: req.user?.id, productId: req.params.id },
       'Error deleting product'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to delete product',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };
 
@@ -653,15 +622,6 @@ export const updateInventory = async (
       'Admin updated inventory'
     );
   } catch (error: any) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
     logger.error(
       {
         error: error.message,
@@ -670,10 +630,10 @@ export const updateInventory = async (
       },
       'Error updating inventory'
     );
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to update inventory',
-      timestamp: new Date().toISOString(),
-    });
+
+    const statusCode = getHttpStatusCode(error);
+    const errorResponse = formatErrorResponse(error);
+
+    res.status(statusCode).json(errorResponse);
   }
 };

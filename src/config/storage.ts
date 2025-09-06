@@ -96,8 +96,11 @@ export const validateFileSize = (contentLength: number): boolean => {
  * Obtiene la URL pública para un archivo en el bucket
  */
 export const getPublicUrl = (filePath: string): string => {
-  // Nota: En producción, esto debería usar la URL real de tu proyecto Supabase
-  return `https://your-project.supabase.co/storage/v1/object/public/${STORAGE_CONFIG.PRODUCT_IMAGES_BUCKET}/${filePath}`;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('SUPABASE_URL environment variable is required');
+  }
+  return `${supabaseUrl}/storage/v1/object/public/${STORAGE_CONFIG.PRODUCT_IMAGES_BUCKET}/${filePath}`;
 };
 
 /**
