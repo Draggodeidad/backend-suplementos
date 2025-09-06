@@ -448,7 +448,11 @@ export class ProductService {
         )
         .not('id', 'is', null);
 
-      const withImages = productsWithImages?.length || 0;
+      // Deduplicar por ID de producto para evitar contar productos con múltiples imágenes más de una vez
+      const uniqueProductIds = new Set(
+        productsWithImages?.map((product) => product.id) || []
+      );
+      const withImages = uniqueProductIds.size;
 
       // Categorías utilizadas
       const { count: categories } = await supabaseAdmin

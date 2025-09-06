@@ -100,7 +100,9 @@ export const getPublicUrl = (filePath: string): string => {
   if (!supabaseUrl) {
     throw new Error('SUPABASE_URL environment variable is required');
   }
-  return `${supabaseUrl}/storage/v1/object/public/${STORAGE_CONFIG.PRODUCT_IMAGES_BUCKET}/${filePath}`;
+  const baseUrl = supabaseUrl.replace(/\/+$/, '');
+  const normalizedPath = filePath.replace(/^\/+/, '');
+  return `${baseUrl}/storage/v1/object/public/${STORAGE_CONFIG.PRODUCT_IMAGES_BUCKET}/${normalizedPath}`;
 };
 
 /**
