@@ -190,6 +190,150 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        Cart: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+            user_id: {
+              type: 'string',
+              format: 'uuid',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+            },
+            created_at: {
+              type: 'string',
+              format: 'date-time',
+            },
+            updated_at: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
+        },
+        CartItem: {
+          type: 'object',
+          properties: {
+            cart_id: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+            product_id: {
+              type: 'integer',
+              example: 1,
+            },
+            qty: {
+              type: 'integer',
+              minimum: 1,
+              example: 2,
+            },
+            product: {
+              $ref: '#/components/schemas/Product',
+            },
+          },
+        },
+        PricingCalculation: {
+          type: 'object',
+          properties: {
+            subtotal: {
+              type: 'number',
+              format: 'float',
+              example: 1599.98,
+            },
+            tier: {
+              type: 'string',
+              enum: ['retail', 'distributor'],
+              example: 'retail',
+            },
+            items_count: {
+              type: 'integer',
+              example: 5,
+            },
+            meets_minimum: {
+              type: 'boolean',
+              example: false,
+            },
+            distributor_savings: {
+              type: 'number',
+              format: 'float',
+              nullable: true,
+              example: 200.0,
+            },
+          },
+        },
+        CartSummary: {
+          type: 'object',
+          properties: {
+            cart: {
+              $ref: '#/components/schemas/Cart',
+            },
+            items: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/CartItem',
+              },
+            },
+            pricing: {
+              $ref: '#/components/schemas/PricingCalculation',
+            },
+            total_items: {
+              type: 'integer',
+              example: 3,
+            },
+          },
+        },
+        AddToCartResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            item: {
+              $ref: '#/components/schemas/CartItem',
+            },
+            cart_summary: {
+              $ref: '#/components/schemas/CartSummary',
+            },
+          },
+        },
+        UpdateCartItemResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            item: {
+              allOf: [
+                {
+                  $ref: '#/components/schemas/CartItem',
+                },
+                {
+                  nullable: true,
+                },
+              ],
+            },
+            cart_summary: {
+              $ref: '#/components/schemas/CartSummary',
+            },
+          },
+        },
+        RemoveFromCartResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            cart_summary: {
+              $ref: '#/components/schemas/CartSummary',
+            },
+          },
+        },
       },
     },
     tags: [
@@ -216,6 +360,10 @@ const options: swaggerJsdoc.Options = {
       {
         name: 'Inventory',
         description: 'Product inventory management (admin)',
+      },
+      {
+        name: 'Cart',
+        description: 'Shopping cart management endpoints',
       },
     ],
   },
